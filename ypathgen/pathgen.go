@@ -105,7 +105,8 @@ type GenConfig struct {
 	PreferOperationalState bool
 	// ExcludeState determines whether derived state leaves are excluded
 	// from the path-building methods.
-	ExcludeState bool
+	ExcludeState  bool
+	ExcludeConfig bool
 	// FakeRootName specifies the name of the struct that should be generated
 	// representing the root.
 	FakeRootName string
@@ -246,7 +247,7 @@ func (cg *GenConfig) GeneratePathCode(yangFiles, includePaths []string) (map[str
 	// many ways in which compilation may fail, coupled with the plethora
 	// of configurations, means there is an argument to force the user to
 	// debug instead of making ypathgen having to catch every error.
-	compressBehaviour, err := genutil.TranslateToCompressBehaviour(true, cg.ExcludeState, cg.PreferOperationalState)
+	compressBehaviour, err := genutil.TranslateToCompressBehaviour(true, cg.ExcludeState, cg.ExcludeConfig, cg.PreferOperationalState)
 	if err != nil {
 		return nil, nil, util.NewErrs(fmt.Errorf("ypathgen: unable to translate compress behaviour: %v", err))
 	}

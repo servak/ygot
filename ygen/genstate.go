@@ -147,6 +147,9 @@ func buildDirectoryDefinitions(langMapper LangMapper, entries map[string]*yang.E
 		if opts.TransformationOptions.CompressBehaviour.StateExcluded() && !util.IsConfig(e) {
 			continue
 		}
+		if opts.TransformationOptions.CompressBehaviour.ConfigExcluded() && util.IsConfig(e) {
+			continue
+		}
 		if e.IsList() || e.IsDir() || util.IsRoot(e) {
 			// This should be mapped to a struct in the generated code since it has
 			// child elements in the YANG schema.

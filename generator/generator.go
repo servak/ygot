@@ -68,6 +68,7 @@ var (
 	ignoreCircDeps                       = flag.Bool("ignore_circdeps", false, "If set to true, circular dependencies between submodules are ignored.")
 	fakeRootName                         = flag.String("fakeroot_name", "", "The name of the fake root entity.")
 	excludeState                         = flag.Bool("exclude_state", false, "If set to true, state (config false) fields in the YANG schema are not included in the generated Go code.")
+	excludeConfig                        = flag.Bool("exclude_config", false, "If set to true, config (config true) fields in the YANG schema are not included in the generated Go code.")
 	skipEnumDedup                        = flag.Bool("skip_enum_deduplication", false, "If set to true, all leaves of type enumeration will have a unique enum output for them, rather than sharing a common type (default behaviour).")
 	preferOperationalState               = flag.Bool("prefer_operational_state", false, "If set to true, state (config false) fields in the YANG schema are preferred over intended config leaves in the generated Go code with compressed schema paths. This flag is only valid for compress_paths=true and exclude_state=false.")
 	ignoreShadowSchemaPaths              = flag.Bool("ignore_shadow_schema_paths", false, "If set to true when compress_paths=true, the shadowed schema path will be ignored while unmarshalling instead of causing an error. A shadow schema path is a config or state path which is selected over the other during schema compression when both config and state versions of the node exist. See https://github.com/openconfig/ygot/blob/master/docs/shadow_paths.md for more information on shadow paths.")
@@ -323,7 +324,7 @@ func main() {
 			log.Exitf("Error: Go struct generation requires a specified output file or output directory.")
 		}
 
-		compressBehaviour, err := genutil.TranslateToCompressBehaviour(*compressPaths, *excludeState, *preferOperationalState)
+		compressBehaviour, err := genutil.TranslateToCompressBehaviour(*compressPaths, *excludeState, *excludeConfig, *preferOperationalState)
 		if err != nil {
 			log.Exitf("ERROR Generating Code: %v\n", err)
 		}
@@ -443,6 +444,7 @@ func main() {
 		},
 		PreferOperationalState:               *preferOperationalState,
 		ExcludeState:                         *excludeState,
+		ExcludeConfig:                        *excludeConfig,
 		SkipEnumDeduplication:                *skipEnumDedup,
 		ShortenEnumLeafNames:                 *shortenEnumLeafNames,
 		EnumOrgPrefixesToTrim:                enumOrgPrefixesToTrim,

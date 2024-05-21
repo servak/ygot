@@ -74,12 +74,15 @@ func GetOrderedEntryKeys(entries map[string]*yang.Entry) []string {
 // case nodes). Choice and case nodes themselves are not appended to the children
 // list. If the excludeState argument is set to true, children that are
 // config false (i.e., read only) in the YANG schema are not returned.
-func findAllChildrenWithoutCompression(e *yang.Entry, excludeState bool) (map[string]*yang.Entry, []error) {
+func findAllChildrenWithoutCompression(e *yang.Entry, excludeState, excludeConfig bool) (map[string]*yang.Entry, []error) {
 	var errs []error
 	directChildren := map[string]*yang.Entry{}
 	for _, child := range util.Children(e) {
 		// Exclude children that are config false if requested.
 		if excludeState && !util.IsConfig(child) {
+			continue
+		}
+		if excludeConfig && util.IsConfig(child) {
 			continue
 		}
 
@@ -112,6 +115,9 @@ const (
 	// UncompressedExcludeDerivedState excludes config false subtrees in
 	// the generated code.
 	UncompressedExcludeDerivedState
+	// UncompressedExcludeDerivedState excludes config false subtrees in
+	// the generated code.
+	UncompressedExcludeDerivedConfig
 	// PreferIntendedConfig generates only the "config" version of a field
 	// when it exists under both "config" and "state" containers of its
 	// parent YANG model. If no conflict exists between these containers,
@@ -126,6 +132,10 @@ const (
 	// (i.e. config false), including their children, from the generated
 	// code output.
 	ExcludeDerivedState
+	// ExcludeDerivedState excludes all values that are not writeable
+	// (i.e. config true), including their children, from the generated
+	// code output.
+	ExcludeDerivedConfig
 )
 
 // CompressEnabled is a helper to query whether compression is on.
@@ -135,12 +145,16 @@ func (c CompressBehaviour) String() string {
 		return "Uncompressed"
 	case UncompressedExcludeDerivedState:
 		return "UncompressedExcludeDerivedState"
+	case UncompressedExcludeDerivedConfig:
+		return "UncompressedExcludeDerivedConfig"
 	case PreferIntendedConfig:
 		return "PreferIntendedConfig"
 	case PreferOperationalState:
 		return "PreferOperationalState"
 	case ExcludeDerivedState:
 		return "ExcludeDerivedState"
+	case ExcludeDerivedConfig:
+		return "ExcludeDerivedConfig"
 	}
 	return fmt.Sprintf("%d", c)
 }
@@ -148,7 +162,7 @@ func (c CompressBehaviour) String() string {
 // CompressEnabled is a helper to query whether compression is on.
 func (c CompressBehaviour) CompressEnabled() bool {
 	switch c {
-	case Uncompressed, UncompressedExcludeDerivedState:
+	case Uncompressed, UncompressedExcludeDerivedState, UncompressedExcludeDerivedConfig:
 		return false
 	}
 	return true
@@ -163,10 +177,19 @@ func (c CompressBehaviour) StateExcluded() bool {
 	return false
 }
 
+// ConfigExcluded is a helper to query whether derived state is excluded.
+func (c CompressBehaviour) ConfigExcluded() bool {
+	switch c {
+	case ExcludeDerivedConfig, UncompressedExcludeDerivedConfig:
+		return true
+	}
+	return false
+}
+
 // TranslateToCompressBehaviour translates the set of (compressPaths,
 // excludeState, preferOperationalState) into a CompressBehaviour. Invalid
 // combinations produces an error.
-func TranslateToCompressBehaviour(compressPaths, excludeState, preferOperationalState bool) (CompressBehaviour, error) {
+func TranslateToCompressBehaviour(compressPaths, excludeState, excludeConfig, preferOperationalState bool) (CompressBehaviour, error) {
 	switch {
 	case preferOperationalState && !(compressPaths && !excludeState):
 		return 0, fmt.Errorf("preferOperationalState is only compatible with compressPaths=true and excludeState=false")
@@ -174,10 +197,14 @@ func TranslateToCompressBehaviour(compressPaths, excludeState, preferOperational
 		return PreferOperationalState, nil
 	case compressPaths && excludeState:
 		return ExcludeDerivedState, nil
+	case compressPaths && excludeConfig:
+		return ExcludeDerivedConfig, nil
 	case compressPaths:
 		return PreferIntendedConfig, nil
 	case excludeState:
 		return UncompressedExcludeDerivedState, nil
+	case excludeConfig:
+		return UncompressedExcludeDerivedConfig, nil
 	default:
 		return Uncompressed, nil
 	}
@@ -290,13 +317,16 @@ func FindAllChildren(e *yang.Entry, compBehaviour CompressBehaviour) (map[string
 	if compBehaviour.StateExcluded() && !util.IsConfig(e) {
 		return nil, nil, nil
 	}
+	if compBehaviour.ConfigExcluded() && util.IsConfig(e) {
+		return nil, nil, nil
+	}
 
 	var prioData, deprioData string
 	switch compBehaviour {
 	case Uncompressed, UncompressedExcludeDerivedState:
 		// If compression is not required, then we do not need to recurse into as many
 		// nodes, so return simply the first level direct children (other than choice or case).
-		directChildren, errs := findAllChildrenWithoutCompression(e, compBehaviour.StateExcluded())
+		directChildren, errs := findAllChildrenWithoutCompression(e, compBehaviour.StateExcluded(), compBehaviour.ConfigExcluded())
 		return directChildren, nil, errs
 	case PreferIntendedConfig, ExcludeDerivedState:
 		prioData, deprioData = "config", "state"
